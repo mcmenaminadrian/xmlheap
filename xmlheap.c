@@ -11,9 +11,8 @@
 #define BUFFSZ 512
 
 static char buffer[BUFFSZ];
-//if file pointers are NULL (default) use std*
-FILE *inFile = NULL;
-FILE *outFile = NULL;
+FILE *inFile = stdin;
+FILE *outFile = stdout;
 char *inFileStr = NULL;
 char *outFileStr = NULL
 long boundaryCount = 1000000;
@@ -98,7 +97,6 @@ struct ChainDetails {
 	long accesses;
 }
 
-
 struct ChainDetails*
 GetChainDetails(struct ChainDetails *details, struct BitArray *nextBA)
 {
@@ -112,7 +110,6 @@ GetChainDetails(struct ChainDetails *details, struct BitArray *nextBA)
 		}
 	return GetChainDetails(details, nextBA->nextBitArray);
 }
-
 
 int main(int argc, char* argv[])
 {
@@ -149,3 +146,48 @@ int main(int argc, char* argv[])
 
 	XML_SetStartElementHandler(p_ctrl, StartHandler);
 	XML_SetEndElementHandler(p_ctrl, EndHandler);
+
+	if (inFileStr) {
+		inFile = fopen(inFileStr, "r");
+		if (inFile == NULL) {
+			fprintf(stderr, "Could not open %s\n", inFileStr);
+			XML_ParserFree(p_ctrl);
+			exit(-1);
+		}
+	}
+	if (outFileStr) {
+		outFile = fopen(outFileStr, "w");
+		if (outFile == NULL) {
+			fprintf(stderr, "Could not open %s\n", outFileStr);
+			XML_ParserFree(p_ctrl);
+			exit(-1);
+		}
+	}
+
+	do {
+		long len = fread(buffer, 1, sizeof(buffer), inXML);
+		done = len < sizeof(buffer);
+
+		if (XML_Parse(p_ctrl, buffer, len, 0) == 0) {
+			enum XML_Error errcode = XML_GetErrorCode(p_ctrl);
+			fprintf(stderr,
+				"ERROR: %s\n", XML_ErrorString(errcode));
+			fprintf(stderr, "Line number: %lu ", 
+				XML_GetCurrentLineNumber(p_ctrl));
+			fprintf(stderr, "column number: %lu\n",
+				XML_GetCurrentColumnNumber(p_ctrl));
+			break;		}
+	} while(!done);
+
+	//TODO: flush data to outFile
+
+	XML_ParserFree(p_ctrl);
+	if (inFileStr) {
+		fclose(inFile);
+	}
+	if (outFileStr) {
+		fclose(outFile);
+	}
+
+	return 0;
+}
