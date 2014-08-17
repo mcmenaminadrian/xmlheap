@@ -11,8 +11,8 @@
 #define BUFFSZ 512
 
 static char buffer[BUFFSZ];
-FILE *inFile = stdin;
-FILE *outFile = stdout;
+FILE *inFile;
+FILE *outFile;
 char *inFileStr = NULL;
 char *outFileStr = NULL;
 long boundaryCount = 1000000;
@@ -116,6 +116,8 @@ GetChainDetails(struct ChainDetails *details, struct BitArray *nextBA)
 int main(int argc, char* argv[])
 {
 	int i, done;
+	inFile = stdin;
+	outFile = stdout;
 	//parse command line
 	while ((i = getopt(argc, argv, "i:o:b:p:t:x")) != -1)
 		switch(i) {
