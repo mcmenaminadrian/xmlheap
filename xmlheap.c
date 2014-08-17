@@ -14,18 +14,18 @@ static char buffer[BUFFSZ];
 FILE *inFile = stdin;
 FILE *outFile = stdout;
 char *inFileStr = NULL;
-char *outFileStr = NULL
+char *outFileStr = NULL;
 long boundaryCount = 1000000;
 int pageShift = 12;
 int ticksPerLoad = 100;
-int excludeloadTime = 0;
+int excludeLoadTime = 0;
 
 struct BitArray {
 	long pageNumber;
 	char *bits;
 	long accessCount;
-	struct bitArray *nextBitArray;
-}
+	struct BitArray *nextBitArray;
+};
 
 struct BitArray *headBitArray = NULL;
 
@@ -37,7 +37,7 @@ struct BitArray *CreateBitArray(long pageNumber)
 		fprintf(stderr, "Failed to create BitArray structure\n");
 		return NULL;
 	}
-	bArray->bits = (char*)calloc(1 << pageShift);
+	bArray->bits = (char*)calloc(1, 1 << pageShift);
 	if (!bArray->bits) {
 		fprintf(stderr, "Failed to initialise bits in BitArray.\n");
 		free(bArray);
@@ -52,7 +52,7 @@ struct BitArray *CreateBitArray(long pageNumber)
 struct BitArray *TraverseBitArray(long pageNumber, struct BitArray *nextBA)
 {
 	if (nextBA == NULL) {
-		struct BitArray *emptyBA = CreateBitArray(pageNumber)
+		struct BitArray *emptyBA = CreateBitArray(pageNumber);
 		emptyBA->nextBitArray = headBitArray;
 		headBitArray = emptyBA;
 		return emptyBA;
@@ -61,7 +61,8 @@ struct BitArray *TraverseBitArray(long pageNumber, struct BitArray *nextBA)
 			return nextBA;
 		}
 		else {
-			return TraverseBitArray(nextBA->nextBitArray);
+			return TraverseBitArray(pageNumber,
+				nextBA->nextBitArray);
 		}
 	}
 }
@@ -74,7 +75,7 @@ void CleanBitArrayChain(struct BitArray *nextBA)
 	struct BitArray *nextOne = nextBA->nextBitArray;
 	free(nextBA->bits);
 	free(nextBA);
-	CleanBitArray(nextOne);
+	CleanBitArrayChain(nextOne);
 }
 
 struct BitArray *GetBitArray(long pageNumber)
@@ -95,7 +96,7 @@ struct ChainDetails {
 	long pages;
 	long range;
 	long accesses;
-}
+};
 
 struct ChainDetails*
 GetChainDetails(struct ChainDetails *details, struct BitArray *nextBA)
@@ -104,16 +105,17 @@ GetChainDetails(struct ChainDetails *details, struct BitArray *nextBA)
 		return details;
 	} else {
 		details->pages++;
-		details->accesses += accessCount;
+		details->accesses += nextBA->accessCount;
 		for (int i = 0; i < 1 << pageShift; i++) {
 			details->range += nextBA->bits[i];
 		}
-	return GetChainDetails(details, nextBA->nextBitArray);
+		return GetChainDetails(details, nextBA->nextBitArray);
+	}
 }
 
 int main(int argc, char* argv[])
 {
-
+	int i, done;
 	//parse command line
 	while ((i = getopt(argc, argv, "i:o:b:p:t:x")) != -1)
 		switch(i) {
@@ -165,7 +167,7 @@ int main(int argc, char* argv[])
 	}
 
 	do {
-		long len = fread(buffer, 1, sizeof(buffer), inXML);
+		long len = fread(buffer, 1, sizeof(buffer), inFile);
 		done = len < sizeof(buffer);
 
 		if (XML_Parse(p_ctrl, buffer, len, 0) == 0) {
