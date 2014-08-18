@@ -65,24 +65,6 @@ struct BitArray *CreateBitArray(long pageNumber)
 	return bArray;
 }
 
-struct BitArray *TraverseBitArray(long pageNumber, struct BitArray *nextBA)
-{
-	if (nextBA == NULL) {
-		struct BitArray *emptyBA = CreateBitArray(pageNumber);
-		emptyBA->nextBitArray = headBitArray;
-		headBitArray = emptyBA;
-		return emptyBA;
-	} else {
-		if (nextBA->pageNumber == pageNumber) {
-			return nextBA;
-		}
-		else {
-			return TraverseBitArray(pageNumber,
-				nextBA->nextBitArray);
-		}
-	}
-}
-
 void CleanBitArrayChain(struct BitArray *nextBA)
 {
 	if (nextBA == NULL) {
@@ -94,14 +76,8 @@ void CleanBitArrayChain(struct BitArray *nextBA)
 	CleanBitArrayChain(nextOne);
 }
 
-struct BitArray *GetBitArray(long pageNumber)
+void MarkBit(int offset, int length, struct BitArray *ourBA)
 {
-	return TraverseBitArray(pageNumber, headBitArray);
-}
-
-void MarkBit(int offset, int length, long pageNumber)
-{
-	struct BitArray *ourBA = TraverseBitArray(pageNumber, headBitArray);
 	ourBA->accessCount += length;
 	for (int i = offset; i < offset + length; i++) {
 		ourBA->bits[i] = 1;
@@ -160,7 +136,7 @@ static void XMLCALL EndHandler(void *data, const XML_Char *name)
 		}
 		return;
 	}
-	if (strcmp(name, "frame") == 0) {
+	if (strcmp(name, "page") == 0) {
 		char strEnd[smBUFFSZ];
 		char strPages[smBUFFSZ];
 		char strIdle[smBUFFSZ];
@@ -182,8 +158,11 @@ static void XMLCALL EndHandler(void *data, const XML_Char *name)
 			fprintf(outFile, "%s, %s, ", strIdle, strRange);
 			fprintf(outFile, "%s\n", strAccess);
 			free(nextChain);
+			nextChain = NULL;
 			CleanBitArrayChain(headBitArray);
+			headBitArray = NULL;
 			nextBoundary += boundaryCount;
+
 		}
 	}
 }
@@ -198,11 +177,11 @@ static void XMLCALL
 		for (int i = 0; attr[i]; i += 2) {
 			if (strcmp(attr[i], "frame") == 0) {
 				pageN = atol(attr[i + 1]);
-				break;
+				continue;
 			}
 			if (strcmp(attr[i], "in") == 0) {
 				startTime = atol(attr[i + 1]);
-				break;
+				continue;
 			}
 			if (strcmp(attr[i], "out") == 0) {
 				endTime = atol(attr[i + 1]);
@@ -225,13 +204,13 @@ static void XMLCALL
 			for (int i = 0; attr[i]; i += 2) {
 				if (strcmp(attr[i], "address") == 0) {
 					offset = atol(attr[i + 1]) & pageMask;
-					break;
+					continue;
 				}
 				if (strcmp(attr[i], "size") == 0) {
 					size = atol(attr[i + 1]);
 				}
 			}
-			MarkBit(offset, size, headBitArray->pageNumber);
+			MarkBit(offset, size, headBitArray);
 			XML_SetCharacterDataHandler(*pp_ctrl, TickHandler);
 			strTick = (char *)calloc(1, BUFFSZ);
 		}
