@@ -16,6 +16,6 @@ xmlheap.o: xmlheap.c
 debugxmlheap: dxmlheap.o
 	gcc -g -O0 -o xmlheap -Wall dxmlheap.o -lexpat
 
-dxmlheap: xmlheap.c
+dxmlheap.o: xmlheap.c
 	gcc -g -O0 -o dxmlheap.o -c -Wall xmlheap.c
 

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <expat.h>
 #include <unistd.h>
+#include <string.h>
 
 
 //XMLHEAP is licensed for reuse under Version 3 of the GNU GPL
@@ -9,6 +10,7 @@
 
 //globals - this is C after all
 #define BUFFSZ 512
+#define smBUFFSZ 16
 
 static char buffer[BUFFSZ];
 FILE *inFile;
@@ -21,7 +23,9 @@ int pageShift = 12;
 int ticksPerLoad = 100;
 int excludeLoadTime = 0;
 long currentCount = 0;
-char *tickStr = NULL;
+char *strTick = NULL;
+int tickIP = 0;
+unsigned long pageMask = 0;
 static XML_Parser *pp_ctrl;
 
 struct BitArray {
@@ -113,14 +117,14 @@ struct ChainDetails {
 };
 
 struct ChainDetails*
-i	GetChainDetails(struct ChainDetails *details, struct BitArray *nextBA)
+	GetChainDetails(struct ChainDetails *details, struct BitArray *nextBA)
 {
 	if (nextBA == NULL) {
 		if (!excludeLoadTime) {
 			long pageLoadFactor = (1 << pageShift) * ticksPerLoad *
 				details->pages;
 			details->time += pageLoadFactor;
-			details->idleTime += pageLoadFactor;
+			details->idletime += pageLoadFactor;
 		}
 		return details;
 	} else {
@@ -135,13 +139,20 @@ i	GetChainDetails(struct ChainDetails *details, struct BitArray *nextBA)
 	}
 }
 
+static void XMLCALL TickHandler(void *data, const XML_Char *s, int len)
+{
+	strncpy(strTick + tickIP, s, len);
+	tickIP += len;
+}
+
 static void XMLCALL EndHandler(void *data, const XML_Char *name)
 {
 	if (strcmp(name, "code") == 0 || strcmp(name, "rw") == 0) {
 		long tick = atol(strTick);
 		free(strTick);
-		XML_SetCharcterDataHandler(*pp_ctrl, NULL);
-		if (headBitArray->idleTime == 0) {
+		tickIP = 0;
+		XML_SetCharacterDataHandler(*pp_ctrl, NULL);
+		if (headBitArray->idleTicks == 0) {
 			headBitArray->lastTick = tick;
 		} else {
 			headBitArray->idleTicks += tick - headBitArray->lastTick;
@@ -150,22 +161,26 @@ static void XMLCALL EndHandler(void *data, const XML_Char *name)
 		return;
 	}
 	if (strcmp(name, "frame") == 0) {
-		headBitArray->idleTicks += ended - headBitArray->lastTick;
+		char strEnd[smBUFFSZ];
+		char strPages[smBUFFSZ];
+		char strIdle[smBUFFSZ];
+		char strRange[smBUFFSZ];
+		char strAccess[smBUFFSZ];
+		headBitArray->idleTicks +=
+			headBitArray->ended - headBitArray->lastTick;
 		if (headBitArray->ended >= nextBoundary) {
 			struct ChainDetails *nextChain =
 				(struct ChainDetails *)malloc(sizeof(
 				struct ChainDetails));
 			GetChainDetails(nextChain, headBitArray);
-			fprintf(outFile, ltoa(ended, 10));
-			fprintf(outFile, ", ");
-			fprintf(outFile, ltoa(nextChain->pages, 10));
-			fprintf(outFile, ", "); 
-			fprintf(outFiile, ltoa(nextChain->idletime, 10));
-			fprintf(outFile, ", ");
-			fprintf(outFile, ltoa(nextChain->range, 10));
-			fprintf(outFile, ", ");
-			fprintf(outFile, ltoa(nextChain->accesses, 10));
-			fprintf(outFile, "\n");
+			sprintf(strEnd, "%ld", headBitArray->ended);
+			sprintf(strPages, "%ld", nextChain->pages);
+			sprintf(strIdle, "%ld", nextChain->idletime);
+			sprintf(strRange, "%ld", nextChain->range);
+			sprintf(strAccess, "%ld", nextChain->accesses);
+			fprintf(outFile, "%s, %s, ", strEnd, strPages);
+			fprintf(outFile, "%s, %s, ", strIdle, strRange);
+			fprintf(outFile, "%s\n", strAccess);
 			free(nextChain);
 			CleanBitArrayChain(headBitArray);
 			nextBoundary += boundaryCount;
@@ -177,7 +192,7 @@ static void XMLCALL
 	StartHandler(void *data, const XML_Char *name, const XML_Char **attr)
 {
 	if (strcmp(name, "page") == 0) {
-		long pageN;
+		long pageN = 0;
 		long startTime;
 		long endTime;
 		for (int i = 0; attr[i]; i += 2) {
@@ -204,7 +219,8 @@ static void XMLCALL
 		newBA->nextBitArray = headBitArray;
 		headBitArray = newBA;
 	} else {
-		long offset, size;
+		long offset = 0;
+		long size = 0;
 		if (strcmp(name, "rw") == 0 || strcmp(name, "code") == 0){
 			for (int i = 0; attr[i]; i += 2) {
 				if (strcmp(attr[i], "address") == 0) {
@@ -216,8 +232,8 @@ static void XMLCALL
 				}
 			}
 			MarkBit(offset, size, headBitArray->pageNumber);
-			XML_SetCharcterDataHandler(*pp_ctrl, TickHandler);
-			tickStr = (char *)calloc(1, BUFFSZ);
+			XML_SetCharacterDataHandler(*pp_ctrl, TickHandler);
+			strTick = (char *)calloc(1, BUFFSZ);
 		}
 	}
 }
@@ -252,7 +268,7 @@ int main(int argc, char* argv[])
 			break;
 		}
 
-	for (i = 0; i < pageShift) {
+	for (i = 0; i < pageShift; i++) {
 		pageMask |= 1 << i;
 	}
 	nextBoundary = boundaryCount;
