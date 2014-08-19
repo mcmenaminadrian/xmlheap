@@ -119,7 +119,7 @@ struct ChainDetails*
 
 static void XMLCALL TickHandler(void *data, const XML_Char *s, int len)
 {
-	strncpy(strTick + tickIP, s, len);
+	strncpy(&strTick[tickIP], s, len);
 	tickIP += len;
 }
 
@@ -148,7 +148,7 @@ static void XMLCALL EndHandler(void *data, const XML_Char *name)
 			headBitArray->ended - headBitArray->lastTick;
 		if (headBitArray->ended >= nextBoundary) {
 			struct ChainDetails *nextChain =
-				(struct ChainDetails *)malloc(sizeof(
+				(struct ChainDetails *)calloc(1, sizeof(
 				struct ChainDetails));
 			GetChainDetails(nextChain, headBitArray);
 			sprintf(strEnd, "%ld", headBitArray->ended);
@@ -208,15 +208,16 @@ static void XMLCALL
 			for (i = 0; attr[i]; i += 2) {
 				if (strcmp(attr[i], "address") == 0) {
 					offset = atol(attr[i + 1]) & pageMask;
-					continue;
 				}
-				if (strcmp(attr[i], "size") == 0) {
-					size = atol(attr[i + 1]);
+				else {
+					if (strcmp(attr[i], "size") == 0) {
+						size = atol(attr[i + 1]);
+					}
 				}
 			}
 			MarkBit(offset, size, headBitArray);
 			XML_SetCharacterDataHandler(*pp_ctrl, TickHandler);
-			strTick = (char *)calloc(1, BUFFSZ);
+			strTick = (char *)calloc(1, smBUFFSZ);
 		}
 	}
 }
