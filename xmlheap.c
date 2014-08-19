@@ -78,8 +78,9 @@ void CleanBitArrayChain(struct BitArray *nextBA)
 
 void MarkBit(int offset, int length, struct BitArray *ourBA)
 {
+	int i;
 	ourBA->accessCount += length;
-	for (int i = offset; i < offset + length; i++) {
+	for (i = offset; i < offset + length; i++) {
 		ourBA->bits[i] = 1;
 	}
 }
@@ -104,11 +105,12 @@ struct ChainDetails*
 		}
 		return details;
 	} else {
+		int i;
 		details->pages++;
 		details->time += nextBA->ended - nextBA->started;
 		details->idletime += nextBA->idleTicks;
 		details->accesses += nextBA->accessCount;
-		for (int i = 0; i < 1 << pageShift; i++) {
+		for (i = 0; i < 1 << pageShift; i++) {
 			details->range += nextBA->bits[i];
 		}
 		return GetChainDetails(details, nextBA->nextBitArray);
@@ -172,9 +174,10 @@ static void XMLCALL
 {
 	if (strcmp(name, "page") == 0) {
 		long pageN = 0;
-		long startTime;
-		long endTime;
-		for (int i = 0; attr[i]; i += 2) {
+		long startTime = 0;
+		long endTime = 0;
+		int i;
+		for (i = 0; attr[i]; i += 2) {
 			if (strcmp(attr[i], "frame") == 0) {
 				pageN = atol(attr[i + 1]);
 				continue;
@@ -200,8 +203,9 @@ static void XMLCALL
 	} else {
 		long offset = 0;
 		long size = 0;
+		int i;
 		if (strcmp(name, "rw") == 0 || strcmp(name, "code") == 0){
-			for (int i = 0; attr[i]; i += 2) {
+			for (i = 0; attr[i]; i += 2) {
 				if (strcmp(attr[i], "address") == 0) {
 					offset = atol(attr[i + 1]) & pageMask;
 					continue;
