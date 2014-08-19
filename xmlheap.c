@@ -10,7 +10,7 @@
 
 //globals - this is C after all
 #define BUFFSZ 512
-#define smBUFFSZ 16
+#define smBUFFSZ 64
 
 static char buffer[BUFFSZ];
 FILE *inFile;
@@ -123,6 +123,32 @@ static void XMLCALL TickHandler(void *data, const XML_Char *s, int len)
 	tickIP += len;
 }
 
+static void writeOutChain()
+{
+	char strEnd[smBUFFSZ];
+	char strPages[smBUFFSZ];
+	char strIdle[smBUFFSZ];
+	char strRange[smBUFFSZ];
+	char strAccess[smBUFFSZ];
+	struct ChainDetails *nextChain =
+		(struct ChainDetails *)calloc(1, sizeof(
+		struct ChainDetails));
+	GetChainDetails(nextChain, headBitArray);
+	sprintf(strEnd, "%ld", headBitArray->ended);
+	sprintf(strPages, "%ld", nextChain->pages);
+	sprintf(strIdle, "%ld", nextChain->idletime);
+	sprintf(strRange, "%ld", nextChain->range);
+	sprintf(strAccess, "%ld", nextChain->accesses);
+	fprintf(outFile, "%s, %s, ", strEnd, strPages);
+	fprintf(outFile, "%s, %s, ", strIdle, strRange);
+	fprintf(outFile, "%s\n", strAccess);
+	free(nextChain);
+	nextChain = NULL;
+	CleanBitArrayChain(headBitArray);
+	headBitArray = NULL;
+	nextBoundary += boundaryCount;
+}
+
 static void XMLCALL EndHandler(void *data, const XML_Char *name)
 {
 	if (strcmp(name, "code") == 0 || strcmp(name, "rw") == 0) {
@@ -139,32 +165,10 @@ static void XMLCALL EndHandler(void *data, const XML_Char *name)
 		return;
 	}
 	if (strcmp(name, "page") == 0) {
-		char strEnd[smBUFFSZ];
-		char strPages[smBUFFSZ];
-		char strIdle[smBUFFSZ];
-		char strRange[smBUFFSZ];
-		char strAccess[smBUFFSZ];
 		headBitArray->idleTicks +=
 			headBitArray->ended - headBitArray->lastTick;
 		if (headBitArray->ended >= nextBoundary) {
-			struct ChainDetails *nextChain =
-				(struct ChainDetails *)calloc(1, sizeof(
-				struct ChainDetails));
-			GetChainDetails(nextChain, headBitArray);
-			sprintf(strEnd, "%ld", headBitArray->ended);
-			sprintf(strPages, "%ld", nextChain->pages);
-			sprintf(strIdle, "%ld", nextChain->idletime);
-			sprintf(strRange, "%ld", nextChain->range);
-			sprintf(strAccess, "%ld", nextChain->accesses);
-			fprintf(outFile, "%s, %s, ", strEnd, strPages);
-			fprintf(outFile, "%s, %s, ", strIdle, strRange);
-			fprintf(outFile, "%s\n", strAccess);
-			free(nextChain);
-			nextChain = NULL;
-			CleanBitArrayChain(headBitArray);
-			headBitArray = NULL;
-			nextBoundary += boundaryCount;
-
+			writeOutChain();
 		}
 	}
 }
@@ -301,8 +305,7 @@ int main(int argc, char* argv[])
 			break;		}
 	} while(!done);
 
-	//TODO: flush data to outFile
-
+	writeOutChain();
 	XML_ParserFree(p_ctrl);
 	if (inFileStr) {
 		fclose(inFile);
