@@ -32,7 +32,7 @@ static XML_Parser *pp_ctrl;
 struct ThreadMap {
 	long count;
 	int threads;
-	struct threadMap *next;
+	struct ThreadMap *next;
 };
 
 struct BitArray {
@@ -57,9 +57,7 @@ struct ThreadMap *lastThreadMap(struct ThreadMap *head)
 	if (head->next == NULL) {
 		return head;
 	}
-	if (head->next) {
-		return lastThreadMap(head->next);
-	}
+	return lastThreadMap(head->next);
 }
 
 struct BitArray *CreateBitArray(long pageNumber)
@@ -297,7 +295,7 @@ int main(int argc, char* argv[])
 		fprintf(stderr, "Could not create threadBuff\n");
 		exit(-1);
 	}
-	struct ThreadMap *threadValues = (struct ThreadMap) calloc(1, 
+	struct ThreadMap *threadValues = (struct ThreadMap *) calloc(1, 
 		sizeof(struct ThreadMap));
 	if (!threadValues) {
 		fprintf(stderr, "Could not create threadValues.\n");
