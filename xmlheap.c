@@ -24,7 +24,7 @@ int pageShift = 12;
 int ticksPerLoad = 100;
 int excludeLoadTime = 0;
 long currentCount = 0;
-char *strTick = NULL;
+char *strTick;
 int tickIP = 0;
 unsigned long pageMask = 0;
 static XML_Parser *pp_ctrl;
@@ -63,7 +63,7 @@ struct ThreadMap *lastThreadMap(struct ThreadMap *head)
 struct BitArray *CreateBitArray(long pageNumber)
 {
 	struct BitArray *bArray = (struct BitArray *)
-		malloc(sizeof(struct BitArray));
+		calloc(1, sizeof(struct BitArray));
 	if (!bArray) {
 		fprintf(stderr, "Failed to create BitArray structure.\n");
 		return NULL;
@@ -74,12 +74,6 @@ struct BitArray *CreateBitArray(long pageNumber)
 		free(bArray);
 		return NULL;
 	}
-	bArray->accessCount = 0;
-	bArray->nextBitArray = NULL;
-	bArray->started = 0;
-	bArray->ended = 0;
-	bArray->lastTick = 0;
-	bArray->idleTicks = 0;
 	bArray->pageNumber = pageNumber;
 	return bArray;
 }
@@ -138,7 +132,7 @@ struct ChainDetails*
 
 static void XMLCALL TickHandler(void *data, const XML_Char *s, int len)
 {
-	strncpy(&strTick[tickIP], s, len);
+	strncpy((char*)&(strTick[tickIP]), s, len);
 	tickIP += len;
 }
 
@@ -173,6 +167,7 @@ static void XMLCALL EndHandler(void *data, const XML_Char *name)
 	if (strcmp(name, "code") == 0 || strcmp(name, "rw") == 0) {
 		long tick = atol(strTick);
 		free(strTick);
+		strTick = NULL;
 		tickIP = 0;
 		XML_SetCharacterDataHandler(*pp_ctrl, NULL);
 		if (headBitArray->idleTicks == 0) {
@@ -238,9 +233,13 @@ static void XMLCALL
 					}
 				}
 			}
+			//TODO: Fix this ugly hack
+			if (offset + size > 1 << pageShift) {
+				size = (1 << pageShift) - offset;
+			}
 			MarkBit(offset, size, headBitArray);
-			XML_SetCharacterDataHandler(*pp_ctrl, TickHandler);
 			strTick = (char *)calloc(1, smBUFFSZ);
+			XML_SetCharacterDataHandler(*pp_ctrl, TickHandler);
 		}
 	}
 }
@@ -277,6 +276,7 @@ int main(int argc, char* argv[])
 			threadFileStr = optarg;
 			break;
 		}
+	}
 
 	for (i = 0; i < pageShift; i++) {
 		pageMask |= 1 << i;
