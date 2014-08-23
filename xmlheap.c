@@ -17,6 +17,7 @@ FILE *inFile;
 FILE *outFile;
 char *inFileStr = NULL;
 char *outFileStr = NULL;
+char *threadFileStr = "lru2thread.csv";
 long boundaryCount = 1000000;
 long nextBoundary;
 int pageShift = 12;
@@ -27,6 +28,12 @@ char *strTick = NULL;
 int tickIP = 0;
 unsigned long pageMask = 0;
 static XML_Parser *pp_ctrl;
+
+struct ThreadMap {
+	long count;
+	int threads;
+	struct threadMap *next;
+};
 
 struct BitArray {
 	long pageNumber;
@@ -40,6 +47,20 @@ struct BitArray {
 };
 
 struct BitArray *headBitArray = NULL;
+struct ThreadMap *headThreadMap = NULL;
+
+struct ThreadMap *lastThreadMap(struct ThreadMap *head)
+{
+	if (head == NULL) {
+		return NULL;
+	}
+	if (head->next == NULL) {
+		return head;
+	}
+	if (head->next) {
+		return lastThreadMap(head->next);
+	}
+}
 
 struct BitArray *CreateBitArray(long pageNumber)
 {
@@ -234,7 +255,7 @@ int main(int argc, char* argv[])
 	inFile = stdin;
 	outFile = stdout;
 	//parse command line
-	while ((i = getopt(argc, argv, "i:o:b:p:t:x")) != -1)
+	while ((i = getopt(argc, argv, "i:o:b:p:t:f:x")) != -1)
 		switch(i) {
 		case 'i':
 			inFileStr = optarg;
@@ -254,6 +275,9 @@ int main(int argc, char* argv[])
 		case 'x':
 			excludeLoadTime = 1;
 			break;
+		case 'f':
+			threadFileStr = optarg;
+			break;
 		}
 
 	for (i = 0; i < pageShift; i++) {
@@ -261,10 +285,55 @@ int main(int argc, char* argv[])
 	}
 	nextBoundary = boundaryCount;
 
+	//get thread stuff
+	FILE *threadFile = fopen(threadFileStr, "r");
+	if (!threadFile) {
+		fprintf(stderr, "Could not open %s\n", threadFileStr);
+		exit(-1);
+	}
+	
+	char *threadBuff = (char *)malloc(BUFFSZ);
+	if (!threadBuff) {
+		fprintf(stderr, "Could not create threadBuff\n");
+		exit(-1);
+	}
+	struct ThreadMap *threadValues = (struct ThreadMap) calloc(1, 
+		sizeof(struct ThreadMap));
+	if (!threadValues) {
+		fprintf(stderr, "Could not create threadValues.\n");
+		free(threadBuff);
+		exit(-1);
+	}
+	while (fgets(threadBuff, BUFFSZ, threadFile) != NULL) {
+		struct ThreadMap *workingMap;
+		if (headThreadMap == NULL) {
+			headThreadMap = (struct ThreadMap *)
+				calloc(1, sizeof(struct ThreadMap));
+			workingMap = headThreadMap;
+		} else {
+			struct ThreadMap *tail = lastThreadMap(headThreadMap);
+			tail->next = (struct ThreadMap *)
+				calloc(1, sizeof(struct ThreadMap));
+			workingMap = tail->next;
+		}
+		if (!workingMap) {
+			fprintf(stderr, "Failed on thread file reading.\n");
+			free(threadBuff);
+			free(threadValues);
+			exit(-1);
+		}
+		char *fragment = strtok(threadBuff, ",");
+		workingMap->count = atol(fragment);
+		fragment = strtok(NULL, ",");
+		workingMap->threads = atoi(fragment);
+	}
+
 	//load XML parser
 	XML_Parser p_ctrl = XML_ParserCreate("UTF-8");
 	if (!p_ctrl) {
 		fprintf(stderr, "Could not create XML parser\n");
+		free(threadBuff);
+		free(threadValues);
 		exit(-1);
 	}
 	pp_ctrl = &p_ctrl;
@@ -276,6 +345,8 @@ int main(int argc, char* argv[])
 		inFile = fopen(inFileStr, "r");
 		if (inFile == NULL) {
 			fprintf(stderr, "Could not open %s\n", inFileStr);
+			free(threadBuff);
+			free(threadValues);
 			XML_ParserFree(p_ctrl);
 			exit(-1);
 		}
@@ -284,6 +355,8 @@ int main(int argc, char* argv[])
 		outFile = fopen(outFileStr, "w");
 		if (outFile == NULL) {
 			fprintf(stderr, "Could not open %s\n", outFileStr);
+			free(threadBuff);
+			free(threadValues);
 			XML_ParserFree(p_ctrl);
 			exit(-1);
 		}
@@ -313,6 +386,8 @@ int main(int argc, char* argv[])
 	if (outFileStr) {
 		fclose(outFile);
 	}
+	free(threadBuff);
+	free(threadValues);
 
 	return 0;
 }
