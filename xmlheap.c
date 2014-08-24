@@ -48,6 +48,7 @@ struct BitArray {
 
 struct BitArray *headBitArray = NULL;
 struct ThreadMap *headThreadMap = NULL;
+struct ThreadMap *currentThreadMap = NULL;
 
 struct ThreadMap *lastThreadMap(struct ThreadMap *head)
 {
@@ -164,7 +165,7 @@ static void writeOutChain()
 	sprintf(strAccess, "%ld", nextChain->accesses);
 	fprintf(outFile, "%s, %s, ", strEnd, strPages);
 	fprintf(outFile, "%s, %s, ", strIdle, strRange);
-	fprintf(outFile, "%s\n", strAccess);
+	fprintf(outFile, "%s, %i\n", strAccess, currentThreadMap->threads);
 	free(nextChain);
 	nextChain = NULL;
 	CleanBitArrayChain(headBitArray);
@@ -191,6 +192,14 @@ static void XMLCALL EndHandler(void *data, const XML_Char *name)
 	if (strcmp(name, "page") == 0) {
 		headBitArray->idleTicks +=
 			headBitArray->ended - headBitArray->lastTick;
+		if (currentThreadMap->next) {
+			if (currentThreadMap->next->count
+				< headBitArray->ended) {
+				currentThreadMap = currentThreadMap->next;
+				writeOutChain();
+				return;
+			}
+		}
 		if (headBitArray->ended >= nextBoundary) {
 			writeOutChain();
 		}
@@ -333,6 +342,7 @@ int main(int argc, char* argv[])
 		fragment = strtok(NULL, ",");
 		workingMap->threads = atoi(fragment);
 	}
+	currentThreadMap = headThreadMap;
 
 	//load XML parser
 	XML_Parser p_ctrl = XML_ParserCreate("UTF-8");
@@ -370,7 +380,7 @@ int main(int argc, char* argv[])
 			exit(-1);
 		}
 	}
-	fprintf(outFile, "Ticks, Pages, Idle, Range, Access\n");
+	fprintf(outFile, "Ticks, Pages, Idle, Range, Access, Threads\n");
 
 	do {
 		long len = fread(buffer, 1, sizeof(buffer), inFile);
