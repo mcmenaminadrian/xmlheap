@@ -60,6 +60,16 @@ struct ThreadMap *lastThreadMap(struct ThreadMap *head)
 	return lastThreadMap(head->next);
 }
 
+void cleanThreadMap(struct ThreadMap *head)
+{
+	if (head == NULL) {
+		return;
+	}
+	struct ThreadMap *nextMap = head->next;
+	free(head);
+	cleanThreadMap(nextMap);
+}
+
 struct BitArray *CreateBitArray(long pageNumber)
 {
 	struct BitArray *bArray = (struct BitArray *)
@@ -244,15 +254,13 @@ static void XMLCALL
 	}
 }
 
-
-
 int main(int argc, char* argv[])
 {
 	int i, done;
 	inFile = stdin;
 	outFile = stdout;
 	//parse command line
-	while ((i = getopt(argc, argv, "i:o:b:p:t:f:x")) != -1)
+	while ((i = getopt(argc, argv, "i:o:b:p:t:f:x")) != -1){
 		switch(i) {
 		case 'i':
 			inFileStr = optarg;
@@ -290,7 +298,7 @@ int main(int argc, char* argv[])
 		exit(-1);
 	}
 	
-	char *threadBuff = (char *)malloc(BUFFSZ);
+	char *threadBuff = (char *)calloc(1, BUFFSZ);
 	if (!threadBuff) {
 		fprintf(stderr, "Could not create threadBuff\n");
 		exit(-1);
@@ -330,6 +338,7 @@ int main(int argc, char* argv[])
 	XML_Parser p_ctrl = XML_ParserCreate("UTF-8");
 	if (!p_ctrl) {
 		fprintf(stderr, "Could not create XML parser\n");
+		cleanThreadMap(headThreadMap);
 		free(threadBuff);
 		free(threadValues);
 		exit(-1);
@@ -343,6 +352,7 @@ int main(int argc, char* argv[])
 		inFile = fopen(inFileStr, "r");
 		if (inFile == NULL) {
 			fprintf(stderr, "Could not open %s\n", inFileStr);
+			cleanThreadMap(headThreadMap);
 			free(threadBuff);
 			free(threadValues);
 			XML_ParserFree(p_ctrl);
@@ -353,6 +363,7 @@ int main(int argc, char* argv[])
 		outFile = fopen(outFileStr, "w");
 		if (outFile == NULL) {
 			fprintf(stderr, "Could not open %s\n", outFileStr);
+			cleanThreadMap(headThreadMap);
 			free(threadBuff);
 			free(threadValues);
 			XML_ParserFree(p_ctrl);
@@ -384,6 +395,7 @@ int main(int argc, char* argv[])
 	if (outFileStr) {
 		fclose(outFile);
 	}
+	cleanThreadMap(headThreadMap);
 	free(threadBuff);
 	free(threadValues);
 
